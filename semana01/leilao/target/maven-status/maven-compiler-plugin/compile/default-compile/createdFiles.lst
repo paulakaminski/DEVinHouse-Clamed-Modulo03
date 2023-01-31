@@ -1,0 +1,5 @@
+br\senai\sc\model\Usuario.class
+br\senai\sc\model\Leilao.class
+br\senai\sc\model\Avaliador.class
+br\senai\sc\main\App.class
+br\senai\sc\model\Lance.class
