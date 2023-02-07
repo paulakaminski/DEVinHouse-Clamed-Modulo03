@@ -1,26 +1,36 @@
 package tech.devinhouse.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import tech.devinhouse.dto.UsuarioRequest;
 import tech.devinhouse.dto.UsuarioResponse;
+import tech.devinhouse.model.RoleModel;
 import tech.devinhouse.model.UsuarioModel;
+import tech.devinhouse.repository.RoleRepository;
 import tech.devinhouse.repository.UsuarioRepository;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
-public class UsuarioService {
+public class UsuarioService implements UserDetailsService {
 
-    private final UsuarioRepository repository;
+    private final UsuarioRepository usuarioRepository;
+    private final RoleRepository roleRepository;
 
-    public UsuarioService(UsuarioRepository repository) {
-        this.repository = repository;
+    public UsuarioService(UsuarioRepository usuarioRepository, RoleRepository roleRepository) {
+        this.usuarioRepository = usuarioRepository;
+        this.roleRepository = roleRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<UsuarioResponse> encontrarTodosOsUsuarios() {
-        List<UsuarioModel> modelList = repository.findAll();
+        List<UsuarioModel> modelList = usuarioRepository.findAll();
 
         List<UsuarioResponse> responseList = new ArrayList<>();
 
@@ -38,7 +48,7 @@ public class UsuarioService {
     }
 
     public UsuarioResponse encontrarUsuarioPorId(Long id) {
-        UsuarioModel usuarioModel = repository.findById(id).get();
+        UsuarioModel usuarioModel = usuarioRepository.findById(id).get();
 
         return new UsuarioResponse(usuarioModel.getId()
                 , usuarioModel.getNome()
@@ -49,11 +59,19 @@ public class UsuarioService {
     }
 
     public UsuarioResponse cadastrarUsuaio(UsuarioRequest usuarioRequest) {
-        UsuarioModel usuarioModel = repository.save(
+        RoleModel roleModel = roleRepository.findById(usuarioRequest.getIdRole()).get();
+
+        List<RoleModel> roleModels = new ArrayList<>();
+        roleModels.add(roleModel);
+
+        usuarioRequest.setSenha(new BCryptPasswordEncoder().encode(usuarioRequest.getSenha()));
+
+        UsuarioModel usuarioModel = usuarioRepository.save(
                 new UsuarioModel(usuarioRequest.getNome()
                         , usuarioRequest.getLogin()
                         , usuarioRequest.getSenha()
-                        , usuarioRequest.getEmail())
+                        , usuarioRequest.getEmail()
+                        , roleModels)
         );
 
         return new UsuarioResponse(usuarioModel.getId()
@@ -65,14 +83,22 @@ public class UsuarioService {
     }
 
     public UsuarioResponse atualizarUsuarioPorId(Long id, UsuarioRequest usuarioRequest) {
-       UsuarioModel usuarioModel = repository.findById(id).get();
+       UsuarioModel usuarioModel = usuarioRepository.findById(id).get();
+
+       RoleModel roleModel = roleRepository.findById(usuarioRequest.getIdRole()).get();
+
+       usuarioRequest.setSenha(new BCryptPasswordEncoder().encode(usuarioRequest.getSenha()));
+
+       List<RoleModel> roleModels = new ArrayList<>();
+       roleModels.add(roleModel);
 
        usuarioModel.setNome(usuarioRequest.getNome());
-       usuarioModel.setLogin(usuarioModel.getLogin());
+       usuarioModel.setLogin(usuarioRequest.getLogin());
        usuarioModel.setSenha(usuarioRequest.getSenha());
        usuarioModel.setEmail(usuarioRequest.getEmail());
+       usuarioModel.setRoles(roleModels);
 
-       repository.save(usuarioModel);
+       usuarioRepository.save(usuarioModel);
 
        return new UsuarioResponse(usuarioModel.getId()
                , usuarioModel.getNome()
@@ -82,8 +108,20 @@ public class UsuarioService {
        );
     }
 
+    @Transactional
     public void deletarUsuarioPorId(Long id) {
-        repository.deleteById(id);
+        usuarioRepository.deleteById(id);
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String login) throws UsernameNotFoundException {
+        UsuarioModel usuarioModel = usuarioRepository.findUserByLogin(login);
+
+        if (usuarioModel == null) {
+            throw new UsernameNotFoundException("Usuário não encontrado.");
+        }
+
+        return new User(usuarioModel.getLogin(), usuarioModel.getPassword(), usuarioModel.getAuthorities());
     }
 
 }

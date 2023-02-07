@@ -18,4 +18,6 @@ public class UsuarioRequest {
     private String senha;
 
     private String email;
+
+    private Long idRole;
 }
